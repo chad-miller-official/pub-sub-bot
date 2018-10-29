@@ -1,48 +1,16 @@
-var twit = require( 'twit' );
-
+var twit     = require( 'twit' );
 var sandwich = require( './sandwich.js' );
 
-var config = {
-    twitter: {
-        consumer_key:        process.env.CONSUMER_KEY,
-        consumer_secret:     process.env.CONSUMER_SECRET,
-        access_token:        process.env.ACCESS_TOKEN,
-        access_token_secret: process.env.ACCESS_TOKEN_SECRET,
-    },
-};
-
-var TWITTER = new twit( config.twitter );
-
-function getSandwichComps()
-{
-    var baseSandwich = sandwich.getBaseSandwich();
-  
-    var rval = {
-        baseSandwich: baseSandwich['name'],
-        bread:        sandwich.getBread(),
-    };
-  
-    if( baseSandwich['can_customize_cheese'] )
-        rval['cheese'] = sandwich.getCheese();
-  
-    if( baseSandwich['can_customize_extras'] )
-        rval['extras'] = sandwich.getExtras();
-  
-    if( baseSandwich['can_customize_toppings'] )
-        rval['toppings'] = sandwich.getToppings();
-  
-    if( baseSandwich['can_customize_condiments'] )
-        rval['condiments'] = sandwich.getCondiments();
-  
-    if( baseSandwich['can_customize_heating_option'] )
-        rval['heatingOption'] = sandwich.getHeatingOption();
-  
-    return rval;
-}
+const TWITTER = new twit( {
+    consumer_key:        process.env.CONSUMER_KEY,
+    consumer_secret:     process.env.CONSUMER_SECRET,
+    access_token:        process.env.ACCESS_TOKEN,
+    access_token_secret: process.env.ACCESS_TOKEN_SECRET,
+} );
 
 function postStatusUpdate( req, res )
 {
-    var sandwichComps = getSandwichComps();
+    var sandwichComps = sandwich.getSandwichComps();
     var sandwichName  = sandwichComps['baseSandwich'];
     var bread         = sandwichComps['bread'];
     var cheese        = sandwichComps['cheese'];
@@ -50,39 +18,60 @@ function postStatusUpdate( req, res )
     var toppings      = sandwichComps['toppings'];
     var condiments    = sandwichComps['condiments'];
     var heatingOption = sandwichComps['heatingOption'];
+  
+    var breadLabel = bread[0].toLowerCase();
+  
+    if( breadLabel === 'italian 5 grain' )
+        breadLabel = 'Italian 5 grain';
 
-    var statusClauses = [ sandwichName + ' on ' + bread ];
+    var statusClauses = [ sandwichName + ' on ' + breadLabel ];
   
     if( heatingOption )
-        statusClauses.push( heatingOption );
+        statusClauses.push( heatingOption[0].toLowerCase() );
   
     if( cheese || extras || toppings || condiments )
     {
         var additionalClause = 'with ';
-  
-        var statusParts = [];
-      
+        var statusParts      = [];
+            
         if( cheese )
-            statusParts.push( cheese );
-      
-        if( extras )
         {
-            extras.forEach( ( e ) => {
-                statusParts.push( e )
-            } );
+            var cheeseLabel = cheese[0].toLowerCase();
+          
+            switch( cheeseLabel )
+            {
+                case 'swiss':
+                    cheeseLabel = 'Swiss';
+                    break;
+                case 'white american':
+                    cheeseLabel = 'white American';
+                    break;
+                case 'yellow american':
+                    cheeseLabel = 'yellow American';
+                    break;
+            }
+
+            statusParts.push( cheeseLabel );
         }
       
         if( toppings )
         {
             toppings.forEach( ( t ) => {
-                statusParts.push( t );
+                statusParts.push( t.toLowerCase() );
             } );
         }
       
         if( condiments )
         {
             condiments.forEach( ( c ) => {
-                statusParts.push( c );
+                statusParts.push( c.toLowerCase() );
+            } );
+        }
+      
+        if( extras )
+        {
+            extras.forEach( ( e ) => {
+                statusParts.push( e.toLowerCase() )
             } );
         }
       
@@ -103,7 +92,7 @@ function postStatusUpdate( req, res )
     }
   
     var postData = {
-        status: statusClauses.join( '; ' ),
+        status: statusClauses.join( ', ' ),
     };
   
     TWITTER.post( 'statuses/update', postData, ( err, data, response ) => {
