@@ -1,10 +1,9 @@
 var fs      = require( 'fs' );
 var sqlite3 = require( 'better-sqlite3' );
 
-const DB_FILE = './.data/sqlite.db';
-var SQLITE    = new sqlite3( DB_FILE );
+const SQLITE  = new sqlite3( './.data/sqlite.db' );
 
-function _selectFromTable( tableName )
+function _selectFromTable( tableName, additionalWhereClauses )
 {
     var boundsQuery = `
 select min_quantity,
@@ -21,15 +20,19 @@ select min_quantity,
     var minQuantity = boundsRow.min_quantity;
     var maxQuantity = boundsRow.max_quantity;
   
-    var limit = Math.floor( Math.random() * maxQuantity );
+    var limit = Math.round( Math.random() * maxQuantity );
   
     if( !limit )
         limit = minQuantity;
   
-    var itemsQuery  = 'select label from ' + tableName;
-        itemsQuery += ' order by random()';
-        itemsQuery += ' limit ' + limit;
-    
+    var itemsQuery = 'select label from ' + tableName;
+  
+    if( additionalWhereClauses )
+        itemsQuery += ' where ' + additionalWhereClauses.join( 'and ' );
+  
+    itemsQuery += ' order by random()';
+    itemsQuery += ' limit ' + limit;
+      
     var rvalStmt = SQLITE.prepare( itemsQuery );
     var rvalAll  = rvalStmt.all();
     var rval     = rvalAll.map( r => r.label );
@@ -67,9 +70,17 @@ function getCheese()
     return _selectFromTable( 'tb_cheese' );
 }
 
-function getExtras()
+function getExtras( excludeList )
 {
-    return _selectFromTable( 'tb_extra' );
+    var extraArgs;
+
+    if( excludeList && excludeList.length > 0 )
+    {
+        var excludeValuesStr = excludeList.map( x => "'" + x + "'" ).join( ', ' );
+            extraArgs        = [ 'label not in ( ' + excludeValuesStr + ' )' ];
+    }
+
+    return _selectFromTable( 'tb_extra', extraArgs );
 }
 
 function getToppings()
@@ -87,6 +98,44 @@ function getHeatingOption()
     return _selectFromTable( 'tb_heating_option' );
 }
 
+function getSandwichComps()
+{
+    var baseSandwich     = getBaseSandwich();
+    var baseSandwichName = baseSandwich['name'];
+  
+    var rval = {
+        baseSandwich: baseSandwichName,
+        bread:        getBread(),
+    };
+  
+    if( baseSandwich['can_customize_cheese'] )
+        rval['cheese'] = getCheese();
+  
+    if( baseSandwich['can_customize_extras'] )
+    {
+        var excludeList = [];
+
+        if( baseSandwichName === 'Veggie Sub' )
+            excludeList.push( 'Double Meat', 'Bacon' );
+  
+        if( !rval['cheese'] )
+            excludeList.push( 'Double Cheese' );
+  
+        rval['extras'] = getExtras( excludeList );
+    }
+  
+    if( baseSandwich['can_customize_toppings'] )
+        rval['toppings'] = getToppings();
+  
+    if( baseSandwich['can_customize_condiments'] )
+        rval['condiments'] = getCondiments();
+  
+    if( baseSandwich['can_customize_heating_option'] )
+        rval['heatingOption'] = getHeatingOption();
+  
+    return rval;
+}
+
 module.exports = {
     'getBaseSandwich':  getBaseSandwich,
     'getBread':         getBread,
@@ -95,4 +144,5 @@ module.exports = {
     'getToppings':      getToppings,
     'getCondiments':    getCondiments,
     'getHeatingOption': getHeatingOption,
+    'getSandwichComps': getSandwichComps,
 };
